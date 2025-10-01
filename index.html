@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Uzzi Club + Supabase</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      text-align: center;
+      padding: 40px;
+    }
+    h1 {
+      color: #38bdf8;
+    }
+    input, button {
+      padding: 10px;
+      margin: 10px;
+      border-radius: 6px;
+      border: none;
+    }
+    input {
+      width: 250px;
+    }
+    button {
+      background: #38bdf8;
+      color: black;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .messages {
+      margin-top: 30px;
+      background: #1e293b;
+      padding: 15px;
+      border-radius: 10px;
+    }
+    .message {
+      margin: 8px 0;
+      padding: 8px;
+      background: #334155;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Welcome to Uzzi Club 🚀</h1>
+  <p>Connected to Supabase (Free Forever)</p>
+
+  <!-- Form -->
+  <input type="text" id="username" placeholder="Enter your name" />
+  <input type="text" id="message" placeholder="Enter your message" />
+  <button onclick="sendMessage()">Send</button>
+
+  <!-- Display messages -->
+  <div class="messages" id="messagesBox">
+    <h2>Messages:</h2>
+    <div id="messagesList"></div>
+  </div>
+
+  <!-- Supabase CDN -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script>
+    // ---- Supabase Config ----
+    const SUPABASE_URL = "https://mppmeggeagbbvsnxmrtd.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wcG1lZ2dlYWdiYnZzbnhtcnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzU3MzMsImV4cCI6MjA3NDkxMTczM30.i-6ie8z4nBTCarmlwP1oI0o76ofxW8iUOn5aGh4Gsl0";
+
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ---- Send Message ----
+    async function sendMessage() {
+      const username = document.getElementById("username").value.trim();
+      const message = document.getElementById("message").value.trim();
+      if (!username || !message) {
+        alert("Please enter both fields");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("messages")
+        .insert([{ username, message }]);
+
+      if (error) {
+        console.error(error);
+        alert("Error sending message");
+      } else {
+        document.getElementById("message").value = "";
+      }
+    }
+
+    // ---- Fetch + Realtime Listen ----
+    async function loadMessages() {
+      const { data, error } = await supabase
+        .from("messages")
+        .select("*")
+        .order("id", { ascending: true });
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      const list = document.getElementById("messagesList");
+      list.innerHTML = "";
+      data.forEach(msg => {
+        const div = document.createElement("div");
+        div.className = "message";
+        div.innerText = `${msg.username}: ${msg.message}`;
+        list.appendChild(div);
+      });
+    }
+
+    // Realtime updates
+    supabase
+      .channel("any")
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, loadMessages)
+      .subscribe();
+
+    // Initial load
+    loadMessages();
+  </script>
+</body>
+</html>
