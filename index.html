@@ -1,200 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Uzzi Info</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    body { margin:0; font-family: Arial, sans-serif; background:#000; color:#fff; }
-    header { background:#111; padding:15px 30px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #222; }
-    header h1 { color:#1DA1F2; margin:0; }
-    nav a { margin:0 12px; text-decoration:none; color:#aaa; }
-    nav a.active, nav a:hover { color:#1DA1F2; }
-    .container { padding:30px; }
-    .hidden { display:none; }
-    input, textarea, button { width:100%; padding:12px; margin:10px 0; border:none; border-radius:6px; }
-    input, textarea { background:#222; color:#fff; }
-    button { background:#1DA1F2; color:#fff; cursor:pointer; font-weight:bold; }
-    button:hover { background:#0d8ddb; }
-    .profile-card { border:1px solid #222; padding:15px; border-radius:10px; margin:10px 0; background:#111; }
-  </style>
-</head>
-<body>
+-- Enable UUID extension
+create extension if not exists "uuid-ossp";
 
-  <!-- Header/Navbar -->
-  <header id="navbar" class="hidden">
-    <h1>Uzzi Info</h1>
-    <nav>
-      <a href="#" onclick="showPage('home')">Home</a>
-      <a href="#" onclick="showPage('search')">Search</a>
-      <a href="#" onclick="showPage('me')">Me</a>
-      <a href="#" onclick="showPage('about')">About</a>
-      <a href="#" onclick="logout()">Logout</a>
-    </nav>
-  </header>
+-- Drop old broken table if it exists
+drop table if exists profiles;
 
-  <!-- Auth Page -->
-  <div id="auth" class="container">
-    <h2>Welcome to Uzzi Info</h2>
-    <p>Login or create an account to continue.</p>
-    <input type="email" id="email" placeholder="Email" />
-    <input type="password" id="password" placeholder="Password" />
-    <button onclick="signUp()">Sign Up</button>
-    <button onclick="login()">Login</button>
-    <p id="authMsg"></p>
-  </div>
+-- Create fresh profiles table
+create table profiles (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null,
+  full_name text,
+  father_name text,
+  whatsapp text,
+  instagram text,
+  facebook text,
+  skills text,
+  created_at timestamp default now()
+);
 
-  <!-- Pages -->
-  <div id="home" class="container hidden">
-    <h2>🔥 Trending Profiles</h2>
-    <div id="trending"></div>
-  </div>
+-- Add foreign key to Supabase auth.users.id
+alter table profiles
+add constraint fk_user
+foreign key (user_id) references auth.users (id) on delete cascade;
 
-  <div id="search" class="container hidden">
-    <h2>🔍 Search Users</h2>
-    <input type="text" id="searchBox" placeholder="Type a name, skill or social..." />
-    <button onclick="searchUsers()">Search</button>
-    <div id="searchResults"></div>
-  </div>
-
-  <div id="me" class="container hidden">
-    <h2>👤 My Profile</h2>
-    <input type="text" id="fullname" placeholder="Full Name" />
-    <input type="text" id="fathername" placeholder="Father Name" />
-    <input type="text" id="whatsapp" placeholder="WhatsApp" />
-    <input type="text" id="instagram" placeholder="Instagram" />
-    <input type="text" id="facebook" placeholder="Facebook" />
-    <textarea id="skills" placeholder="Your Skills"></textarea>
-    <button onclick="saveProfile()">Save Profile</button>
-    <p id="profileMsg"></p>
-  </div>
-
-  <div id="about" class="container hidden">
-    <h2>ℹ️ About Uzzi Info</h2>
-    <p>Uzzi Info is a community-driven platform where anyone can create and share their personal profile, talents, skills, and social links. Discover trending profiles, search for people, and manage your own digital presence — all in one place.</p>
-    <p>👑 Founded by <b>Uzair Ahmad</b></p>
-  </div>
-
-  <script>
-    // --- Supabase Config ---
-    const SUPABASE_URL = "https://mppmeggeagbbvsnxmrtd.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wcG1lZ2dlYWdiYnZzbnhtcnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzU3MzMsImV4cCI6MjA3NDkxMTczM30.i-6ie8z4nBTCarmlwP1oI0o76ofxW8iUOn5aGh4Gsl0";
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    let currentUser = null;
-
-    // --- Page Switching ---
-    function showPage(id) {
-      document.querySelectorAll(".container").forEach(div => div.classList.add("hidden"));
-      document.getElementById(id).classList.remove("hidden");
-      if(id==="home") loadTrending();
-      if(id==="me") loadProfile();
-    }
-
-    // --- Auth ---
-    async function signUp() {
-      const { data, error } = await supabase.auth.signUp({
-        email: document.getElementById("email").value,
-        password: document.getElementById("password").value,
-      });
-      document.getElementById("authMsg").textContent = error ? error.message : "✅ Signup successful! Check your email.";
-    }
-
-    async function login() {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: document.getElementById("email").value,
-        password: document.getElementById("password").value,
-      });
-      if (error) {
-        document.getElementById("authMsg").textContent = error.message;
-      } else {
-        currentUser = data.user;
-        document.getElementById("auth").classList.add("hidden");
-        document.getElementById("navbar").classList.remove("hidden");
-        showPage("home");
-      }
-    }
-
-    async function logout() {
-      await supabase.auth.signOut();
-      currentUser = null;
-      document.getElementById("navbar").classList.add("hidden");
-      document.querySelectorAll(".container").forEach(div => div.classList.add("hidden"));
-      document.getElementById("auth").classList.remove("hidden");
-    }
-
-    // --- Profile Save ---
-    async function saveProfile() {
-      if (!currentUser) return;
-      const profile = {
-        user_id: currentUser.id,
-        full_name: document.getElementById("fullname").value,
-        father_name: document.getElementById("fathername").value,
-        whatsapp: document.getElementById("whatsapp").value,
-        instagram: document.getElementById("instagram").value,
-        facebook: document.getElementById("facebook").value,
-        skills: document.getElementById("skills").value,
-      };
-      const { data, error } = await supabase
-        .from("profiles")
-        .upsert(profile, { onConflict: ["user_id"] });
-      document.getElementById("profileMsg").textContent = error ? error.message : "✅ Profile saved!";
-    }
-
-    // --- Load My Profile ---
-    async function loadProfile() {
-      if (!currentUser) return;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", currentUser.id)
-        .single();
-      if (data) {
-        document.getElementById("fullname").value = data.full_name || "";
-        document.getElementById("fathername").value = data.father_name || "";
-        document.getElementById("whatsapp").value = data.whatsapp || "";
-        document.getElementById("instagram").value = data.instagram || "";
-        document.getElementById("facebook").value = data.facebook || "";
-        document.getElementById("skills").value = data.skills || "";
-      }
-    }
-
-    // --- Search Users ---
-    async function searchUsers() {
-      let q = document.getElementById("searchBox").value;
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .or(`full_name.ilike.%${q}%,skills.ilike.%${q}%,instagram.ilike.%${q}%`);
-      let results = "";
-      if (data && data.length) {
-        data.forEach(p => {
-          results += `<div class='profile-card'><b>${p.full_name || "Unnamed"}</b><br>Skills: ${p.skills || "-"}<br>IG: ${p.instagram || "-"}</div>`;
-        });
-      } else {
-        results = "❌ No results";
-      }
-      document.getElementById("searchResults").innerHTML = results;
-    }
-
-    // --- Trending Profiles ---
-    async function loadTrending() {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(5);
-      let results = "";
-      if (data && data.length) {
-        data.forEach(p => {
-          results += `<div class='profile-card'><b>${p.full_name || "Unnamed"}</b><br>${p.skills || ""}</div>`;
-        });
-      } else {
-        results = "No profiles yet. Be the first!";
-      }
-      document.getElementById("trending").innerHTML = results;
-    }
-  </script>
-</body>
-</html>
+-- Ensure each user can only have one profile
+create unique index profiles_user_id_idx on profiles(user_id);
