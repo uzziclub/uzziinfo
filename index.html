@@ -1,26 +1,250 @@
--- Enable UUID extension
-create extension if not exists "uuid-ossp";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uzzi Info</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #000;
+      color: #fff;
+    }
+    header {
+      background: #111;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #222;
+    }
+    header h1 {
+      color: #1DA1F2;
+      margin: 0;
+    }
+    nav a {
+      color: #fff;
+      margin: 0 10px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+    nav a:hover {
+      color: #1DA1F2;
+    }
+    .section {
+      display: none;
+      padding: 20px;
+    }
+    .active {
+      display: block;
+    }
+    .auth-container {
+      display: flex;
+      height: 100vh;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+    }
+    .auth-box {
+      background: #111;
+      padding: 30px;
+      border-radius: 10px;
+      width: 300px;
+    }
+    .auth-box h2 {
+      color: #1DA1F2;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .auth-box input, .auth-box button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 5px;
+    }
+    .auth-box input {
+      background: #222;
+      color: #fff;
+    }
+    .auth-box button {
+      background: #1DA1F2;
+      color: #fff;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .auth-box button:hover {
+      background: #0d8ddb;
+    }
+    .profile-form input, .profile-form textarea {
+      width: 100%;
+      padding: 8px;
+      margin: 6px 0;
+      border: none;
+      border-radius: 5px;
+      background: #222;
+      color: #fff;
+    }
+    .profile-form button {
+      background: #1DA1F2;
+      color: #fff;
+      padding: 10px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <!-- Auth Screen -->
+  <div id="auth" class="auth-container">
+    <div class="auth-box">
+      <h2>Uzzi Info</h2>
+      <input type="email" id="email" placeholder="Email" />
+      <input type="password" id="password" placeholder="Password" />
+      <button onclick="signUp()">Sign Up</button>
+      <button onclick="signIn()">Login</button>
+      <p id="authMessage"></p>
+    </div>
+  </div>
 
--- Drop old broken table if it exists
-drop table if exists profiles;
+  <!-- Main App -->
+  <div id="app" style="display:none;">
+    <header>
+      <h1>Uzzi Info</h1>
+      <nav>
+        <a href="#" onclick="showSection('home')">Home</a>
+        <a href="#" onclick="showSection('search')">Search</a>
+        <a href="#" onclick="showSection('me')">Me</a>
+        <a href="#" onclick="showSection('about')">About</a>
+        <a href="#" onclick="logout()">Logout</a>
+      </nav>
+    </header>
 
--- Create fresh profiles table
-create table profiles (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid not null,
-  full_name text,
-  father_name text,
-  whatsapp text,
-  instagram text,
-  facebook text,
-  skills text,
-  created_at timestamp default now()
-);
+    <div id="home" class="section active">
+      <h2>Trending Profiles</h2>
+      <div id="trending"></div>
+    </div>
 
--- Add foreign key to Supabase auth.users.id
-alter table profiles
-add constraint fk_user
-foreign key (user_id) references auth.users (id) on delete cascade;
+    <div id="search" class="section">
+      <h2>Search Profiles</h2>
+      <input type="text" id="searchQuery" placeholder="Enter name..." oninput="searchProfiles()" />
+      <div id="searchResults"></div>
+    </div>
 
--- Ensure each user can only have one profile
-create unique index profiles_user_id_idx on profiles(user_id);
+    <div id="me" class="section">
+      <h2>My Profile</h2>
+      <form class="profile-form" onsubmit="saveProfile(event)">
+        <input type="text" id="full_name" placeholder="Full Name" />
+        <input type="text" id="father_name" placeholder="Father Name" />
+        <input type="text" id="whatsapp" placeholder="WhatsApp" />
+        <input type="text" id="instagram" placeholder="Instagram" />
+        <input type="text" id="facebook" placeholder="Facebook" />
+        <textarea id="skills" placeholder="Skills"></textarea>
+        <button type="submit">Save Profile</button>
+      </form>
+    </div>
+
+    <div id="about" class="section">
+      <h2>About Uzzi Info</h2>
+      <p>Uzzi Info is a global talent and info-sharing platform where users can showcase their skills, connect socially, and explore trending personalities. Created by Uzair, this platform empowers everyone to share their story with the world.</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    const SUPABASE_URL = "https://mppmeggeagbbvsnxmrtd.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wcG1lZ2dlYWdiYnZzbnhtcnRkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkzMzU3MzMsImV4cCI6MjA3NDkxMTczM30.i-6ie8z4nBTCarmlwP1oI0o76ofxW8iUOn5aGh4Gsl0";
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    async function signUp() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      document.getElementById("authMessage").innerText = error ? error.message : "Signup successful! Please login.";
+    }
+
+    async function signIn() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        document.getElementById("authMessage").innerText = error.message;
+      } else {
+        document.getElementById("auth").style.display = "none";
+        document.getElementById("app").style.display = "block";
+        loadTrending();
+        loadMyProfile();
+      }
+    }
+
+    async function logout() {
+      await supabase.auth.signOut();
+      document.getElementById("auth").style.display = "flex";
+      document.getElementById("app").style.display = "none";
+    }
+
+    function showSection(id) {
+      document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+    }
+
+    async function saveProfile(e) {
+      e.preventDefault();
+      const user = (await supabase.auth.getUser()).data.user;
+      const profile = {
+        user_id: user.id,
+        full_name: document.getElementById("full_name").value,
+        father_name: document.getElementById("father_name").value,
+        whatsapp: document.getElementById("whatsapp").value,
+        instagram: document.getElementById("instagram").value,
+        facebook: document.getElementById("facebook").value,
+        skills: document.getElementById("skills").value
+      };
+      await supabase.from("profiles").upsert(profile, { onConflict: ["user_id"] });
+      alert("Profile saved!");
+    }
+
+    async function loadMyProfile() {
+      const user = (await supabase.auth.getUser()).data.user;
+      let { data } = await supabase.from("profiles").select("*").eq("user_id", user.id).single();
+      if (data) {
+        document.getElementById("full_name").value = data.full_name || "";
+        document.getElementById("father_name").value = data.father_name || "";
+        document.getElementById("whatsapp").value = data.whatsapp || "";
+        document.getElementById("instagram").value = data.instagram || "";
+        document.getElementById("facebook").value = data.facebook || "";
+        document.getElementById("skills").value = data.skills || "";
+      }
+    }
+
+    async function loadTrending() {
+      let { data } = await supabase.from("profiles").select("full_name, skills").limit(5);
+      const trending = document.getElementById("trending");
+      trending.innerHTML = "";
+      data.forEach(p => {
+        const div = document.createElement("div");
+        div.textContent = `${p.full_name} - ${p.skills}`;
+        trending.appendChild(div);
+      });
+    }
+
+    async function searchProfiles() {
+      const q = document.getElementById("searchQuery").value;
+      let { data } = await supabase.from("profiles").select("full_name, skills").ilike("full_name", "%" + q + "%");
+      const results = document.getElementById("searchResults");
+      results.innerHTML = "";
+      data.forEach(p => {
+        const div = document.createElement("div");
+        div.textContent = `${p.full_name} - ${p.skills}`;
+        results.appendChild(div);
+      });
+    }
+  </script>
+</body>
+</html>
