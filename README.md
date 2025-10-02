@@ -19,7 +19,7 @@ Users can create an account, share their **skills, talents, and social profiles*
 
 ## 🛠️ Tech Stack
 - **Frontend**: HTML, CSS, JavaScript  
-- **Backend / Database**: Supabase (Free Plan)  
+- **Backend / Database**: Supabase 
 - **Hosting**: GitHub Pages  
 
 ---
